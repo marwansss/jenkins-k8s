@@ -1,0 +1,157 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jenkins-home
+  labels:
+    app: jenkins-master
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /mnt/jenkins-home
+    type: DirectoryOrCreate
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-home-pvc
+  namespace: jenkins
+spec:
+  selector:
+    matchLabels:
+      app: jenkins-master
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-deployment
+  namespace: jenkins
+  labels:
+    app: jenkins
+spec:
+  strategy:
+   type: RollingUpdate
+   rollingUpdate:
+#Ensures no pods are unavailable during an update.
+     maxUnavailable: 0
+ #During an update, one extra pod can be created (surge) temporarily.
+     maxSurge: 1
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+     #force pod to restart when crashes
+      restartPolicy: Always
+
+      securityContext:
+        # Runs the container as the root user.
+        runAsUser: 0
+      serviceAccountName: jenkins
+# init container to install crictl and kubectl binaries
+      initContainers:
+      - name: install-crictl
+        image: ubuntu
+        command:
+        - sh
+        - -c
+        - |
+          apt-get update && \
+          apt-get install -y curl && \
+          curl -LO https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.28.0/crictl-v1.28.0-linux-amd64.tar.gz && \
+          mkdir -p /data && \
+          tar -zxvf crictl-v1.28.0-linux-amd64.tar.gz -C /data && \
+          ls -la /data && \
+          chmod +x /data/crictl
+
+        volumeMounts:
+        - name: crictl
+          mountPath: /data
+
+
+      - name: install-kubectl
+        image: 172.20.42.218/kubeclt
+        command: ["cp", "/usr/bin/kubectl", "/data/kubectl"]
+
+        volumeMounts:
+        - name: kubectl
+          mountPath: /data
+
+
+      containers:
+      - name: jenkins-container
+        image: jenkins/jenkins
+        # Pulls the image only if it's not already present on the node.
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 50000
+          protocol: TCP
+
+        volumeMounts:
+          # Mount jenkins-home dir to host
+          - name: jenkins-home
+            mountPath: /var/jenkins-home
+
+          - name: containerd-sock
+            mountPath: /var/run/containerd/containerd.sock
+
+          - name: crictl
+            mountPath: /usr/local/bin/crictl
+            subPath: crictl
+
+          - name: kubectl
+            mountPath: /usr/local/bin/kubectl
+            subPath: kubectl
+      volumes:
+      - name: jenkins-home
+        persistentVolumeClaim:
+          claimName: jenkins-home-pvc
+
+      - name: containerd-sock
+        hostPath:
+          path: /run/containerd/containerd.sock
+          type: "Socket"
+      - name: crictl
+        emptyDir: {}
+
+      - name: kubectl
+        emptyDir: {}
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-svc
+  namespace: jenkins
+spec:
+  type: ClusterIP
+  ports:
+    - name: gui
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+
+    - name: slave
+      port: 50000
+      targetPort: 50000
+      protocol: TCP
+  selector:
+    app: jenkins
