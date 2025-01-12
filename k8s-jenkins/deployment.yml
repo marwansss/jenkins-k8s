@@ -107,7 +107,7 @@ spec:
         volumeMounts:
           # Mount jenkins-home dir to host
           - name: jenkins-home
-            mountPath: /var/jenkins-home
+            mountPath: /var/jenkins_home
 
           - name: containerd-sock
             mountPath: /var/run/containerd/containerd.sock

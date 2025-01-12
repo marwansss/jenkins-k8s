@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins-slaves
+  containers:
+  - name: jenkins-build-dnd-agent
+    image: maro4299311/jenkins-build-dind-agent:1
+
+    securityContext:
+       privileged: true
+
+    volumeMounts:
+    - name: docker-certs-ca
+      mountPath: "/certs/ca"
+
+    - name: docker-certs-client
+      mountPath: "/certs/client"
+
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: "/certs"
+
+
+  volumes:
+
+  - name: docker-certs-ca
+    emptyDir: {}
+
+  - name: docker-certs-client
+    emptyDir: {}

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins-slaves
+  containers:
+  - name: jenkins-build-agent
+    image: 172.20.42.218/jenkins-build-agent
+    volumeMounts:
+    - name: containerd-sock
+      mountPath: /var/run/containerd/containerd.sock
+  volumes:
+  - name: containerd-sock
+    hostPath:
+      path: /run/containerd/containerd.sock
+      type: "Socket"
