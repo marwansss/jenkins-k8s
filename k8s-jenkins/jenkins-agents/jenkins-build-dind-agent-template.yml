@@ -4,7 +4,7 @@ spec:
   serviceAccountName: jenkins-slaves
   containers:
   - name: jenkins-build-dnd-agent
-    image: maro4299311/jenkins-build-dind-agent:1
+    image: maro4299311/jenkins-build-dind-agent:2.0
 
     securityContext:
        privileged: true
@@ -20,9 +20,7 @@ spec:
     - name: DOCKER_TLS_CERTDIR
       value: "/certs"
 
-
   volumes:
-
   - name: docker-certs-ca
     emptyDir: {}
 
